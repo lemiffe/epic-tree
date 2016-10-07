@@ -5,7 +5,7 @@ import ConfigParser
 import sys
 import json
 import pickle
-import ConfigParser, os
+import ConfigParser, os, os.path
 
 # Libraries
 from epictree import *
@@ -412,6 +412,16 @@ def init_from_filesystem(filename=None):
     data_filename = config.get('Files', 'DataFile')
     if filename is not None:
         data_filename = filename
+    # No file with this name? Die!
+    if not os.path.isfile(data_filename):
+        print 'Data file does not exist (new setup? create a blank file called ' + data_filename + ')'
+        exit(1)
+    # Empty file? Initialise it!
+    if os.stat(data_filename).st_size == 0:
+        print 'Data file is empty, initialising file with an empty tree'
+        temp_tree = EpicTree()
+        pickle.dump(temp_tree.tree, open(data_filename, "wb"), pickle.HIGHEST_PROTOCOL)
+    # Load the file into a new tree object
     try:
         epicTree = EpicTree(data_filename)
         print 'Loaded tree from filesystem!'
@@ -433,7 +443,7 @@ def load_example_tree():
     epicTree.tree = {
         154: {
             12: {
-                0: (None, 'root', None, 1, [1251,241,4612]),
+                0: (None, 'root', None, 1, [1251, 241, 4612]),
                 1251: (0, 'file', 1512, 2, None),
                 241: (0, 'dir', None, 1, [351]),
                 351: (2, 'file', 15523, 1, None),

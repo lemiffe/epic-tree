@@ -5,6 +5,11 @@ __pycache__/
 
 # Epic Tree Stuff
 datafile
+log
+config.ini
+
+# IDEs
+.idea
 
 # C extensions
 *.so

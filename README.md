@@ -19,6 +19,21 @@
 - If you use a "managed" mode, where you supply the node IDs (based on a parent application) you may have issues
 - We use event sourcing (with client UTC timestamps) to rollback, and apply prior actions that were received later
 
+## Getting started
+- Clone this repository
+- Make sure you have Docker (and docker-compose) installed
+- Create an empty data file (touch datafile)
+- Create an empty log file (touch log)
+- Copy config.ini.dist (cp config.ini.dist config.ini)
+- Fill in the variables (e.g. 'datafile' and 'log')
+- Make sure docker-compose.yml mounts the three files as volumes (config, datafile and log)
+- Run this to start in local debugging mode: ./restart-dev.sh (debugging)
+
+## Running the tests
+- Get the hash of the container (docker ps -a)
+- Run: docker exec -it {hash} bash
+- Run: cd /app && python app/test.py
+
 ## Todos
 - Sorting using array and not a separate "sort"
 - Several tree operations (marked as TODO below)
@@ -71,18 +86,6 @@
 - root
 - dir
 - asset|file|anything
-
-## Running
-- Local (requires docker-compose):
-    - ./restart-dev.sh (debugging)
-- Alternative (requires docker):
-	- docker build -t epictree:latest .
-	- docker run -d -p 8080:80 epictree
-
-## Running the tests
-- Get the hash of the container (docker ps -a)
-- Run: docker exec -it {hash} bash
-- Run: cd /app && python app/test.py
 
 ## Sample operations (using CURL)
 

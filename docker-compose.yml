@@ -3,6 +3,7 @@ web:
     volumes:
         - ./datafile:/app/datafile
         - ./config.ini:/app/config.ini
+        - ./log:/app/log
         - ./app/:/app/app/
     ports:
         - "8080:80"
