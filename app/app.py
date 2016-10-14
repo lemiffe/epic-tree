@@ -3,9 +3,11 @@ import time
 import logging
 import ConfigParser
 import sys
+import os
+import os.path
 import json
 import pickle
-import ConfigParser, os, os.path
+import ConfigParser
 
 # Libraries
 from epictree import *
@@ -21,18 +23,29 @@ from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.log import enable_pretty_logging
 
+# Set up Flask/Tornado
 app = Flask(__name__)
 app.debug = True
 CORS(app)
 limiter = Limiter(app)
-config = ConfigParser.ConfigParser()
-config.read('config.ini')
 epicTree = None
 
-@app.route('/', methods=['GET'])
-@limiter.limit("50/hour")
-def index():
-    return error_not_found('Nothing to see here')
+# Read configuration file
+config = ConfigParser.ConfigParser()
+config.read('config.ini')
+environment = config.get('Server', 'Environment')
+if environment is None or environment == '':
+    environment = 'production'
+
+# Set up logging
+logger = logging.getLogger()
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
+if environment == 'production':
+    logger.setLevel(logging.ERROR)
 
 # region Trees
 
@@ -43,6 +56,7 @@ def tree():
     content = request.json
     if content is None:
         return make_error('JSON body not sent', 400)
+    # TODO: Use <int:tree_id> as url param for delete + update README.md
     if 'tree_id' not in content:
         return make_error('Tree ID (tree_id) not sent (or incorrect format)', 400)
     tree_id = int(content['tree_id'])
@@ -195,13 +209,7 @@ def get_level(tree_id, segment_id, parent_node_id):
         for child_dict in children:
             child_id = child_dict['id']
             child = child_dict['child']
-            # TODO: We could have a make_result_item method (which can be reused in all retrieval methods)
-            result = {
-                "id": child_id,
-                "type": child[1],
-                "data": child[2],
-                "sort": child[3],
-            }
+            result = make_simple_node(child_id, child)
             results.append(result)
         return success(results)
     except KeyError as inst:
@@ -295,7 +303,7 @@ def directory_add(tree_id, segment_id):
         return error_not_found('Parent Node ' + str(node_id) + ' not found')
     # Validate directory does not exist
     if node_id in epicTree.tree[tree_id][segment_id]:
-        return error_not_found('Directory with Node Id ' + str(node_id) + ' already exists')
+        return error_not_found('An item with Node Id ' + str(node_id) + ' already exists')
     # Execute tree operation
     try:
         epicTree.add_directory(tree_id, segment_id, parent_node_id, node_id, position, None)
@@ -349,21 +357,85 @@ def directory_move(tree_id, segment_id, directory_id):
 
 # region Nodes
 
-@app.route('/tree/<int:tree_id>/segment/<int:segment_id>/node', methods=['POST', 'DELETE'])
+@app.route('/tree/<int:tree_id>/segment/<int:segment_id>/node', methods=['POST'])
 @limiter.limit("200000/hour")
-def node(tree_id, segment_id):
-    # TODO
-    # epicTree.add_node (100, 1000, 2000, 2001, 1, None, 'asset', 12348)
-    # epicTree.add_node (100, 1000, 2000, 2002, 1, None, 'asset', 12349) # Wrong sort on purpose
-    # epicTree.add_node (100, 1000, 2003, 2005, 1, None, 'asset', 12349) # Wrong sort on purpose
-    return make_error('not implemented', 400)
+def node_add(tree_id, segment_id):
+    # Validate
+    if tree_id is None:
+        return make_error('Tree Id not sent (or incorrect format)', 400)
+    if segment_id is None:
+        return make_error('Segment Id not sent (or incorrect format)', 400)
+    # Get variables
+    content = request.json
+    if content is None:
+        return make_error('JSON body not sent', 400)
+    if 'parent_node_id' not in content:
+        return make_error('Parent Node Id (parent_node_id) not sent (or incorrect format)', 400)
+    parent_node_id = int(content['parent_node_id'])
+    if 'node_id' not in content:
+        return make_error('Node Id (parent_node_id) not sent (or incorrect format)', 400)
+    node_id = int(content['node_id'])
+    position = None
+    if 'position' in content:
+        position = int(content['position'])
+        if position < 1:
+            return make_error('Position can\'t be less than 1', 400)
+    if 'type' not in content:
+        return make_error('Node Type (type) not sent (or incorrect format)', 400)
+    node_type = content['type']
+    if node_type == 'dir' or node_type == 'root':
+        return make_error('Node Type can\'t be root or dir, use the other endpoints to create these types', 400)
+    if 'payload' not in content:
+        return make_error('Payload (payload) not sent (or incorrect format)', 400)
+    payload = content['payload']
+    # Validate tree exists
+    if tree_id not in epicTree.tree:
+        return error_not_found('Tree ' + str(tree_id) + ' not found')
+    # Validate segment exists
+    if segment_id not in epicTree.tree[tree_id]:
+        return error_not_found('Segment ' + str(segment_id) + ' not found')
+    # Validate parent exists
+    if parent_node_id not in epicTree.tree[tree_id][segment_id]:
+        return error_not_found('Parent Node ' + str(node_id) + ' not found')
+    # Validate node does not exist
+    if node_id in epicTree.tree[tree_id][segment_id]:
+        return error_not_found('Node with Id ' + str(node_id) + ' already exists')
+    # Execute tree operation
+    try:
+        epicTree.add_node(tree_id, segment_id, parent_node_id, node_id, position, None, node_type, payload)
+        return success(True)
+    except KeyError as inst:
+        return make_error(inst, 409)
+    except Exception as inst:
+        return make_error(inst, 500)
 
 @app.route('/tree/<int:tree_id>/segment/<int:segment_id>/node/<int:node_id>', methods=['DELETE'])
 @limiter.limit("100000/hour")
 def node_delete(tree_id, segment_id, node_id):
-    # TODO
-    # epicTree.remove_node (100, 1000, 2002)
-    return make_error('not implemented', 400)
+    # Validate input
+    if tree_id is None:
+        return make_error('Tree Id not sent (or incorrect format)', 400)
+    if segment_id is None:
+        return make_error('Segment Id not sent (or incorrect format)', 400)
+    if node_id is None:
+        return make_error('Node Id (node_id) not sent (or incorrect format)', 400)
+    # Validate tree exists
+    if tree_id not in epicTree.tree:
+        return error_not_found('Tree ' + str(tree_id) + ' not found')
+    # Validate segment exists
+    if segment_id not in epicTree.tree[tree_id]:
+        return error_not_found('Segment ' + str(segment_id) + ' not found')
+    # Validate directory exists
+    if node_id not in epicTree.tree[tree_id][segment_id]:
+        return error_not_found('Node ' + str(node_id) + ' not found')
+    # Execute tree operation
+    try:
+        epicTree.remove_node(tree_id, segment_id, node_id)
+        return success(True)
+    except KeyError as inst:
+        return error_not_found(inst)
+    except Exception as inst:
+        return make_error(inst, 500)
 
 @app.route('/tree/<int:tree_id>/segment/<int:segment_id>/node/<int:node_id>/move', methods=['POST', 'PUT'])
 @limiter.limit("50000/hour")
@@ -461,7 +533,7 @@ def load_example_tree():
 
 # endregion
 
-# region: HTTP Response Handler
+# region HTTP Response Handler
 
 def success(obj):
     response = {
@@ -516,24 +588,39 @@ def make_error(msg, code):
 
 # endregion
 
-# region: Init
+# region Helper methods
+
+def make_simple_node(node_id, node_data):
+    return {
+        "id": node_id,
+        "type": node_data[1],
+        "data": node_data[2],
+        "sort": node_data[3]
+    }
+
+# endregion
+
+# region Init
 
 if __name__ == '__main__':
     # Load tree
     init_from_filesystem()
-    # Tornado
-    http_server = HTTPServer(WSGIContainer(app))
-    http_server.listen(80)
-    # Debug & autoreload (dev only)
-    def fn():
-        print "Hooked before reloading..."
-    tornado.autoreload.add_reload_hook(fn)
-    tornado.autoreload.start()
-    enable_pretty_logging()
-    # Run Tornado
-    IOLoop.instance().start()
-    # Run Flask
-    # TODO: If on dev environment run flask instead of Tornado (easier debugging/testing)
-    #app.run(debug=True, host='0.0.0.0', port=8080)
+    # Get server config
+    port = int(config.get('Server', 'Port'))
+    if environment == 'production':
+        # Tornado
+        http_server = HTTPServer(WSGIContainer(app))
+        http_server.listen(port)
+        # Debug & autoreload (dev only. tornado is for prod... maybe separate 'server' from 'logging level'?)
+        #def fn():
+        #    print "Hooked before reloading..."
+        #tornado.autoreload.add_reload_hook(fn)
+        #tornado.autoreload.start()
+        #enable_pretty_logging()
+        # Run Tornado
+        IOLoop.instance().start()
+    else:
+        # Run Flask
+        app.run(debug=True, host='0.0.0.0', port=port)
 
 # endregion

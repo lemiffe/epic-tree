@@ -57,7 +57,7 @@ class EpicTree:
             raise KeyError('Segment ' + str(segment_id) + ' already exists')
         self.tree[tree_id][segment_id] = {root_node_id: (None, 'root', None, 1, None)}
         self.materialised_paths.append(str(tree_id) + '/' + str(segment_id))
-        self.materialised_paths.append(str(tree_id) + '/' + str(segment_id) + '/' + str(root_node_id) + '$')  # Root=$
+        self.materialised_paths.append(str(tree_id) + '/' + str(segment_id) + '/' + str(root_node_id))
         return
 
     def remove_segment(self, tree_id, segment_id):
@@ -91,12 +91,11 @@ class EpicTree:
     def get_segment_root_node(self, tree_id, segment_id):
         """Find root node ID in segment"""
         # TODO: Search materialised path first
-        # Does the structure exist?
+        # Does the segment exist?
         if tree_id not in self.tree:
             raise KeyError('Tree ' + str(tree_id) + ' doesn\'t exist')
         if segment_id not in self.tree[tree_id]:
             raise KeyError('Segment ' + str(segment_id) + ' not found')
-        # TODO: Maybe we can add the root_node_id to the segment for speed purposes
         # Search for the root
         root_node_id = None
         nodes = self.tree[tree_id][segment_id]
@@ -108,12 +107,12 @@ class EpicTree:
 
     # endregion
 
-    # region Retrieval and Search
+    # region Retrieval
 
     def get_level(self, tree_id, segment_id, parent_node_id):
         """Get Level (children of a parent node)"""
         # TODO: Search materialised path first
-        # Does the structure exist?
+        # Does the segment exist?
         if tree_id not in self.tree:
             raise KeyError('Tree ' + str(tree_id) + ' doesn\'t exist')
         if segment_id not in self.tree[tree_id]:
@@ -133,7 +132,7 @@ class EpicTree:
     def get_breadcrumbs(self, tree_id, segment_id, node_id):
         """Get Breadcrumbs (find ancestors)"""
         # TODO: Search materialised path first
-        # Does the structure exist?
+        # Does the segment exist?
         if tree_id not in self.tree:
             raise KeyError('Tree ' + str(tree_id) + ' doesn\'t exist')
         if segment_id not in self.tree[tree_id]:
@@ -149,52 +148,81 @@ class EpicTree:
         return list(path)
 
     def get_tree_from_node(self, tree_id, segment_id, parent_node_id):
-        """Get tree (starting from a node) - sorted!"""
-        # TODO
+        """
+        Get tree (starting from a node) - sorted!
+        :param tree_id: int
+        :param segment_id: int
+        :param parent_node_id: int
+        :return: []
+        """
+        # TODO: A lot of pressure is on you my little friend :)  Too many functions depend on you!
         return
 
     def get_tree_from_segment(self, tree_id, segment_id):
-        """Get tree (full segment) - sorted!"""
-        # TODO
-        return
+        """
+        Get tree (full segment) - sorted!
+        :param tree_id: int
+        :param segment_id: int
+        :return: []
+        """
+        # Does the segment exist?
+        if tree_id not in self.tree:
+            raise KeyError('Tree ' + str(tree_id) + ' doesn\'t exist')
+        if segment_id not in self.tree[tree_id]:
+            raise KeyError('Segment ' + str(segment_id) + ' doesn\'t exist')
+        root_node_id = self.get_segment_root_node(tree_id, segment_id)
+        return self.get_tree_from_node(tree_id, segment_id, root_node_id)
 
     def get_tree_from_segments(self, tree_id, segment_ids):
         """Get tree (set of segments) - sorted!"""
-        # TODO
-        return
+        # Does the segment exist?
+        if tree_id not in self.tree:
+            raise KeyError('Tree ' + str(tree_id) + ' doesn\'t exist')
+        for segment_id in segment_ids:
+            if segment_id not in self.tree[tree_id]:
+                raise KeyError('Segment ' + str(segment_id) + ' doesn\'t exist')
+        # Build structure (array containing trees representing each segment)
+        results = {}
+        for segment_id in segment_ids:
+            results[segment_id] = self.get_tree_from_segment(tree_id, segment_id)
+        return results
 
     def get_tree(self, tree_id):
         """Get tree"""
-        # TODO
-        return
+        # Does the segment exist?
+        if tree_id not in self.tree:
+            raise KeyError('Tree ' + str(tree_id) + ' doesn\'t exist')
+        segment_ids = self.get_segments(tree_id)
+        return self.get_tree_from_segments(tree_id, segment_ids)
 
     def get_everything(self):
         """Get tree (everything)"""
-        # TODO
-        return self.tree  # TEMP
-        # Ordered Dict!
-        #return
+        tree_ids = self.get_trees()
+        results = {}
+        for tree_id in tree_ids:
+            results[tree_id] = self.get_tree(tree_id)
+        return results
 
     # endregion
 
     # region Directories
 
-    def add_directory(self, tree_id, structure_id, parent_node_id, node_id, sort, children):
+    def add_directory(self, tree_id, segment_id, parent_node_id, node_id, sort, children):
         """Directory adding (optional sort which causes re-sorting, otherwise placed at end)"""
-        self.add_node(tree_id, structure_id, parent_node_id, node_id, sort, children, 'dir', None)
+        self.add_node(tree_id, segment_id, parent_node_id, node_id, sort, children, 'dir', None)
         return
 
-    def remove_directory(self, tree_id, structure_id, node_id):
+    def remove_directory(self, tree_id, segment_id, node_id):
         """Directory removal"""
-        self.remove_node(tree_id, structure_id, node_id)
+        self.remove_node(tree_id, segment_id, node_id)
         return
 
-    def duplicate_directory(self, tree_id, structure_id, node_id):
+    def duplicate_directory(self, tree_id, segment_id, node_id):
         """Directory duplication (re-sort only if duplicating in same level + materialise + copy all children)"""
         # TODO
         return
 
-    def move_directory(self, tree_id, structure_id, node_id, target_parent_id, sort):
+    def move_directory(self, tree_id, segment_id, node_id, target_parent_id, sort):
         """Move directory to child, or another segment (add existing folder in another)"""
         # Moving to another segment causes all children to be transported (with new ids)
         # TODO
@@ -206,7 +234,7 @@ class EpicTree:
 
     def add_node(self, tree_id, segment_id, parent_node_id, node_id, sort, children, node_type, payload):
         """Node adding (optional sort which causes re-sorting, otherwise placed at end)"""
-        # Does structure exist?
+        # Does the segment exist?
         if tree_id not in self.tree:
             raise KeyError('Tree ' + str(tree_id) + ' doesn\'t exist')
         if segment_id not in self.tree[tree_id]:
@@ -223,13 +251,13 @@ class EpicTree:
             if level_nodes is None or len(level_nodes) == 0:
                 sort = 1
                 re_sort = False
-        # If sort is set, but exceeds maximum current sort in level by more than 1, set to max + 1
+        # If sort is set, but exceeds maximum current sort in level by more than 1 (or is equal), set to max + 1
         if sort is not None:
             if level_nodes is not None and len(level_nodes) > 1:
-                max_sort = self.get_max_sort_at_level(tree_id, segment_id, level_nodes)
-                if sort > (max_sort + 1):
+                max_sort = self._get_max_sort_at_level(tree_id, segment_id, level_nodes)
+                if sort > (max_sort + 1) or sort == max_sort:
                     sort = max_sort + 1
-                re_sort = False
+                    re_sort = False
             elif level_nodes is not None and len(level_nodes) == 1:
                 # New node is about to be added, we can assume first one has sort of 1
                 sort = 2
@@ -239,7 +267,7 @@ class EpicTree:
             if level_nodes is None or len(level_nodes) == 0:
                 sort = 1
             else:
-                max_sort = self.get_max_sort_at_level(tree_id, segment_id, level_nodes)
+                max_sort = self._get_max_sort_at_level(tree_id, segment_id, level_nodes)
                 if max_sort is not None:
                     sort = max_sort + 1
                 else:
@@ -248,8 +276,7 @@ class EpicTree:
         # Add child
         self.tree[tree_id][segment_id][node_id] = (parent_node_id, node_type, payload, sort, children)
         if re_sort is True:
-            # TODO: Not sure if this is working correctly, would be nice to test it:
-            self.increment_sort_after_item(tree_id, segment_id, sort, parent_node_id)
+            self._increment_sort_after_item(tree_id, segment_id, sort, parent_node_id, node_id)
         # Add child to parent's list of children
         parent_node = self.tree[tree_id][segment_id][parent_node_id]
         new_children = parent_node[4]
@@ -266,7 +293,7 @@ class EpicTree:
 
     def remove_node(self, tree_id, segment_id, node_id):
         """Remove node (re-sort level fully, GC, materialise)"""
-        # Does structure exist?
+        # Does the segment exist?
         if tree_id not in self.tree:
             raise KeyError('Tree ' + str(tree_id) + ' doesn\'t exist')
         if segment_id not in self.tree[tree_id]:
@@ -287,7 +314,7 @@ class EpicTree:
             parent_node = (parent_node[0], parent_node[1], parent_node[2], parent_node[3], new_children)
             self.tree[tree_id][segment_id][parent_node_id] = parent_node
         # Re-sort items at parent's level
-        self.re_sort_level(tree_id, segment_id, parent_node_id)
+        self._re_sort_level(tree_id, segment_id, parent_node_id)
         # Non-atomic function, so we use try..except
         try:
             del self.tree[tree_id][segment_id][node_id]
@@ -351,7 +378,7 @@ class EpicTree:
 
     # region Private: Tree traversal & search
 
-    def find_node_from_root(self, tree_id, segment_id, search_node_id):
+    def _find_node_from_root(self, tree_id, segment_id, search_node_id):
         """Find node_id (depth-first, from root)"""
         # TODO: Search materialised path first
         # Does the segment exist?
@@ -364,17 +391,15 @@ class EpicTree:
         if root_node_id is None:
             raise KeyError('Could not find root node in segment ' + str(tree_id) + '.' + str(segment_id) + ' when searching for node ' + str(search_node_id))
         # Traverse the tree recursively (depth-first) to find child!
-        return self.find_node_from_node(tree_id, segment_id, search_node_id, root_node_id)
+        return self._find_node_from_node(tree_id, segment_id, search_node_id, root_node_id)
 
-    def find_node_from_node(self, tree_id, segment_id, search_node_id, start_node_id):
+    def _find_node_from_node(self, tree_id, segment_id, search_node_id, start_node_id):
         """Recursive (depth-first) function to find a child node starting with a node_id"""
         # Am I the one you are looking for?
         if search_node_id == start_node_id:
-            # print('- I am the one you are looking for!',search_node_id,'- going back up!')
             return search_node_id
         # Get children
         children_node_ids = self.tree[tree_id][segment_id][start_node_id][4]
-        # print ('Debug: I am node', start_node_id,'- I am looking for', search_node_id, 'in', children_node_ids)
         # No children? Not found!
         if children_node_ids is None:
             return None
@@ -382,26 +407,23 @@ class EpicTree:
         for node_id in children_node_ids:
             # Found? Return!
             if node_id == search_node_id:
-                # print('- Debug: Found child', node_id,'- going back up!')
                 return node_id # Quit early!
             else:
                 # Get child node
                 node = self.tree[tree_id][segment_id][node_id]
                 # Go one level deeper, maybe this child has children (only if dir!)
                 if node[1] == 'dir':
-                    # print('- Debug: Child node', node_id, '(',node[1],') might have children')
                     result = self.find_node_from_node(tree_id, segment_id, search_node_id, node_id)
                     if result is not None:
                         return result
         # Nothing found in children? Let's head back up!
-        # print('- Leaf end node, going back up!')
         return None
 
     # endregion
 
     # region Private: Sorting
 
-    def get_max_sort_at_level(self, tree_id, segment_id, level_node_ids):
+    def _get_max_sort_at_level(self, tree_id, segment_id, level_node_ids):
         """
         Get maximum current sort for a level
         :param tree_id:
@@ -418,7 +440,7 @@ class EpicTree:
             return None
         return max_sort
 
-    def re_sort_item(self, tree_id, segment_id, modified_node_id):
+    def _re_sort_item(self, tree_id, segment_id, modified_node_id):
         """
         Re-sort (e.g. new node with sort 4 causes all with 4 or greater to increment by 1)
         This is more of something that happens after node insertion or change (like a listener)
@@ -442,7 +464,7 @@ class EpicTree:
                     self.tree[tree_id][segment_id][node_id] = (node[0], node[1], node[2], node[3] + 1, node[4])
         return
 
-    def re_sort_level(self, tree_id, segment_id, parent_node_id):
+    def _re_sort_level(self, tree_id, segment_id, parent_node_id):
         """
         Re-sort level fully (check for gaps, duplicates, negatives, etc.) called after node deletion, etc.
         :param tree_id:
@@ -497,7 +519,7 @@ class EpicTree:
             for duplicate_node_id in duplicates:
                 # TODO: Horrible, can be fixed afterwards as it is O(n^2)
                 # Might also cause issues if more than one duplicate with same sort_number)
-                self.re_sort_item(tree_id, segment_id, duplicate_node_id)
+                self._re_sort_item(tree_id, segment_id, duplicate_node_id)
             # Gaps: Push all afterwards back by one
             gaps = []
             prev_sort = 0
@@ -526,7 +548,7 @@ class EpicTree:
         level_nodes = None  # GC just in case
         return
 
-    def increment_sort_after_item(self, tree_id, segment_id, sort_number, parent_node_id):
+    def _increment_sort_after_item(self, tree_id, segment_id, sort_number, parent_node_id, modified_node_id):
         """
         Looks for a specific sort target (e.g. 4) and increments all greater than that
         allowing insertion of an item '5' now that 5 became 6
@@ -535,6 +557,7 @@ class EpicTree:
         :param segment_id:
         :param sort_number:
         :param parent_node_id:
+        :param node_id:
         :return:
         """
         # Get parent
@@ -545,7 +568,7 @@ class EpicTree:
         if sibling_ids is not None and len(sibling_ids) > 1:
             for node_id in sibling_ids:
                 node = self.tree[tree_id][segment_id][node_id]
-                if node[3] > sort_number:
+                if node[3] >= sort_number and node_id != modified_node_id:
                     self.tree[tree_id][segment_id][node_id] = (node[0], node[1], node[2], node[3] + 1, node[4])
         return
 

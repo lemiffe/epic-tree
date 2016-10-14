@@ -1,3 +1,7 @@
 [Files]
 DataFile=
 LogFile=
+
+[Server]
+Port=
+Environment=

@@ -2,6 +2,7 @@ import unittest
 import app
 import os
 import json
+import logging
 
 
 class TreeTest(unittest.TestCase):
@@ -31,7 +32,7 @@ class TreeTest(unittest.TestCase):
         result = json.loads(http_response.data)
         self.assertEqual(int(result['meta']['code']), 200)
         self.assertEqual(result['response'], self.ROOT_ID)
-        # Create a directory (position 500 => 1)
+        # Create a directory (position 500 => should transform into 1)
         post_url = '/tree/' + str(self.TREE_ID) + '/segment/' + str(self.SEGMENT_ID) + '/directory'
         post_data = json.dumps(dict(parent_node_id=self.ROOT_ID, node_id=self.FIRST_DIR_ID, position=500))
         http_response = self.app.post(post_url, data=post_data, content_type='application/json')
@@ -368,9 +369,9 @@ class TreeTest(unittest.TestCase):
 
     # endregion
 
-    # region Persist + Load
+    # region Persist
 
-    def test_persist_and_reload(self):
+    def test_persist(self):
         """
         Endpoint: /persist
         Methods: ['POST']
@@ -393,6 +394,17 @@ class TreeTest(unittest.TestCase):
         result = json.loads(http_response.data)
         self.assertEqual(int(result['meta']['code']), 200)
         self.assertEqual(result['response'], {})
+        # Remove temporary file
+        os.remove(test_file)
+
+    # endregion
+
+    # region Load
+
+    def test_tree_load(self):
+        test_file = "test.data"
+        # Clear the tree
+        self.app.post('/clear', data=(), content_type='application/json')
         # Persist example tree
         app.load_example_tree()
         post_data = json.dumps(dict(filename=test_file))

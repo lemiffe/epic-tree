@@ -22,12 +22,11 @@
 ## Getting started
 - Clone this repository
 - Make sure you have Docker (and docker-compose) installed
-- Create an empty data file (touch datafile)
-- Create an empty log file (touch log)
 - Copy config.ini.dist (cp config.ini.dist config.ini)
 - Fill in the variables (e.g. 'datafile' and 'log')
 - Make sure docker-compose.yml mounts the three files as volumes (config, datafile and log)
 - Run this to start in local debugging mode: ./restart-dev.sh (debugging)
+- On production, touch the 'log' and 'datafile' files and run: ./restart.sh
 
 ## Running the tests
 - Get the hash of the container (docker ps -a)
@@ -87,6 +86,10 @@
 - dir
 - asset|file|anything
 
+## What is the difference between restart.sh and restart-dev.sh
+- restart.sh runs the service in the background, uses tornado (allows concurrent requests), and logs errors only
+- restart-dev.sh runs in the foreground, logs all debug/info messages as well, and uses flask (for simplicity)
+
 ## Sample operations (using CURL)
 
 ### Generic operations
@@ -110,9 +113,41 @@
 - Whole tree: curl -X GET localhost:8080/tree (TODO)
 
 ### Directory operations
-- Create a directory: curl -X POST localhost:8080/tree/{ID}/segment/{ID}/directory -H "Content-Type: application/json" -d '{"parent_node_id": 1, "node_id": 1, "position": 5}' # Optional: position
+- Create a directory: curl -X POST localhost:8080/tree/{ID}/segment/{ID}/directory -H "Content-Type: application/json" -d '{"parent_node_id": 1, "node_id": 1, "position": 5}'
+    - Position is optional, if omitted it will be added at the end
 - Delete a directory: curl -X DELETE localhost:8080/tree/{ID}/segment/{ID}/directory/{ID}
 - Duplicate a directory: (TODO)
 - Move a directory: (TODO)
 
 ### Node Operations
+- Create a node: curl -X POST localhost:8080/tree/{ID}/segment/{ID}/node -H "Content-Type: application/json" -d '{"parent_node_id": 1, "node_id": 1, "position": 5, "payload": "lol", "type": "asset"}'
+    - Position is optional, if omitted it will be added at the end
+- Delete a node: curl -X DELETE localhost:8080/tree/{ID}/segment/{ID}/node/{ID}
+- Move a node: (TODO)
+- Add a whole level of nodes: (TODO)
+
+## Full example flow
+
+- curl -X GET localhost:8080/trees
+- curl -X POST localhost:8080/clear -H "Content-Type: application/json"
+- curl -X POST localhost:8080/tree -H "Content-Type: application/json" -d '{"tree_id": 1}'
+- curl localhost:8080/trees
+- curl localhost:8080/tree/1/segments
+- curl -X POST localhost:8080/tree/1/segment -H "Content-Type: application/json" -d '{"segment_id": 1, "root_node_id": 1}'
+- curl -X POST localhost:8080/tree/1/segment -H "Content-Type: application/json" -d '{"segment_id": 2, "root_node_id": 1}'
+- curl localhost:8080/tree/1/segments
+- curl -X DELETE localhost:8080/tree/1/segment/2
+- curl localhost:8080/tree/1/segments
+- curl -X GET localhost:8080/tree/1/segment/1/level/1
+- curl -X POST localhost:8080/tree/1/segment/1/directory -H "Content-Type: application/json" -d '{"parent_node_id": 1, "node_id": 1, "position": 5}'
+- curl -X POST localhost:8080/tree/1/segment/1/directory -H "Content-Type: application/json" -d '{"parent_node_id": 1, "node_id": 2, "position": 5}'
+- curl -X GET localhost:8080/tree/1/segment/1/level/1
+- curl -X POST localhost:8080/tree/1/segment/1/node -H "Content-Type: application/json" -d '{"parent_node_id": 1, "node_id": 3, "payload": "lol", "type": "asset"}'
+- curl -X GET localhost:8080/tree/1/segment/1/level/1
+- curl -X POST localhost:8080/tree/1/segment/1/node -H "Content-Type: application/json" -d '{"parent_node_id": 1, "node_id": 4, "position": 2, "payload": "after!", "type": "asset"}'
+- curl -X GET localhost:8080/tree/1/segment/1/level/1
+- curl -X POST localhost:8080/tree/1/segment/1/node -H "Content-Type: application/json" -d '{"parent_node_id": 1, "node_id": 5, "position": 2, "payload": "before?", "type": "asset"}'
+- curl -X GET localhost:8080/tree/1/segment/1/level/1
+- curl -X POST localhost:8080/tree/1/segment/1/node -H "Content-Type: application/json" -d '{"parent_node_id": 2, "node_id": 100, "position": 2, "payload": "inside", "type": "asset"}'
+- curl -X GET localhost:8080/tree/1/segment/1/level/1
+- curl -X GET localhost:8080/tree/1/segment/1/level/2
