@@ -1,31 +1,30 @@
 ## What is this?
 - In-memory tree manager (tree-as-a-service)
 - Supports multiple trees
-- Supports standard CRUD operations
+- Supports standard CRUD operations as well as more complex tree operations (moving/duplicating directories, etc.)
 - Uses materialised path for faster lookups
 - Runs as a dockerised service with a basic API
-- Can run in managed (node IDs are provided by the caller) or unmanaged mode (node IDs are auto-generated)
-- Tree structure is similar to doubly-linked lists, which allows us to use one level for all nodes (faster lookups!)
+- Can run in managed mode (node IDs are provided by the caller) or unmanaged mode (node IDs are auto-generated)
+- Tree structure is similar to doubly-linked lists, which allows us to use one level for all nodes (fast lookups!)
+- Uses a state machine to keep track of all operations, and can roll-back and re-apply changes
 
 ## How does it work?
-- Program init loads tree from disk and does tree corruption analysis
-- Where is the tree file? It is mounted as a volume (see docker-compose.yml)
-- Everything runs in memory, we keep the whole tree for everything in memory at all times
-- Internal cron saves tree to disk every N minutes
-- Backups should be taken care of in the host environment
+- Program init loads tree from disk (mounted as a volume, see docker-compose.yml)
+- Tree is stored in memory which allows fast operations
+- Internal cron saves tree to disk every N minutes (host machine should use log rotate to keep backups)
+- Exposes an API to make tree changes and persist the database on-demand
 
 ## What about atomicity issues?
-- If you hold the whole structure in this app, there should be no problems
-- If you use a "managed" mode, where you supply the node IDs (based on a parent application) you may have issues
 - We use event sourcing (with client UTC timestamps) to rollback, and apply prior actions that were received later
+- Client must send timestamps for this to work, otherwise it assumes all operations were done in the order they were received
 
 ## Getting started
 - Clone this repository
 - Make sure you have Docker (and docker-compose) installed
 - Copy config.ini.dist (cp config.ini.dist config.ini)
-- Fill in the variables (e.g. 'datafile' and 'log')
+- Fill in the location of the files you will mount (e.g. 'datafile' and 'log')
 - Make sure docker-compose.yml mounts the three files as volumes (config, datafile and log)
-- Run this to start in local debugging mode: ./restart-dev.sh (debugging)
+- Run this to start in local debugging mode: ./restart-dev.sh (will create datafile and log the first run)
 - On production, touch the 'log' and 'datafile' files and run: ./restart.sh
 
 ## Running the tests
@@ -34,11 +33,11 @@
 - Run: cd /app && python app/test.py
 
 ## Todos
-- Sorting using array and not a separate "sort"
-- Several tree operations (marked as TODO below)
+- See Github Issues for a list of pending operations, tests, and other todos
 
 ## Data Structure
 - {tree_id: {segment_id: {node_id: (parent_node_id, type, payload (e.g. fileId), sort, [children_node_ids])}}}
+- "sort" will be removed in the near future
 
 ## What structure will the API return?
 ```
